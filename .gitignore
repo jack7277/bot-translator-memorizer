@@ -1,0 +1,13 @@
+.idea/
+__pycache__/
+.local/
+venv/s
+.venv/s
+test*.py
+logs/
+pronounce/
+.ENV
+*.sqlite
+*.lnk
+*.7z
+*.zip
