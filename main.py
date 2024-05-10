@@ -21,6 +21,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import google_translate
 import models
 
+from reverso_context_api import Client
+
 executors = {
     'default': {'type': 'threadpool', 'max_workers': 200},
     'processpool': ProcessPoolExecutor(max_workers=50)
@@ -35,6 +37,10 @@ words = []
 
 load_dotenv()
 TOKEN = os.environ.get("TOKEN")
+EMAIL = os.environ.get("EMAIL")
+EMAIL_PWD = os.environ.get("EMAIL_PWD")
+
+client = Client("en", "ru", credentials=(EMAIL, EMAIL_PWD))
 
 dp = Dispatcher()
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
@@ -46,6 +52,7 @@ keyboard_inline = InlineKeyboardMarkup(inline_keyboard=[[button2]], row_width=1)
 
 dashboard_db = models.DatabaseMixinModel()
 dashboard_db.init_db()
+
 
 
 @dp.message(CommandStart())
@@ -99,6 +106,12 @@ async def prepare_short_bot_answer(clean_text_to_translate, phonetic, translatio
     return bot_answer_to_user
 
 
+async def get_reverso_translation(cttt):  # clean text to translate
+    reverso_translation = list(client.get_translations(cttt))
+    translation = ", ".join(reverso_translation)
+    return translation
+
+
 @dp.message()
 async def echo_handler(message: types.Message) -> None:
     """
@@ -114,17 +127,20 @@ async def echo_handler(message: types.Message) -> None:
         # ищу в бд такое слово/фразу
         clean_text_to_translate = message.text.strip().lower().replace('\n', ' ')
         if len(clean_text_to_translate)>200:
-            await bot.send_message(chat_id=message.from_user.id, text='чота больно длинная фраза, не хочу ничего делать сорян')
+            await bot.send_message(chat_id=message.from_user.id,
+                                   text='чота больно длинная фраза, не хочу ничего делать сорян')
             return
         
         db_obj = (models.session
                   .query(models.Task)
                   .filter(models.Task.clean_text_to_translate == clean_text_to_translate)
                   .all())
+
+
         # в базе нашел такое слово/фразу
-        if len(db_obj) > 0:
+        if len(db_obj) > 0 and not clean_text_to_translate.endswith('/f'):
             # msg = await bot.send_message(chat_id=message.from_user.id, text='Такой запрос уже сохранен в базу...')
-            obj = db_obj[0]
+            obj = db_obj[-1]
             with open(obj.path_to_synth_voice, mode="rb") as f:
                 ff = f.read()
             link_to_file = BufferedInputFile(file=ff, filename=obj.path_to_synth_voice)
@@ -137,9 +153,16 @@ async def echo_handler(message: types.Message) -> None:
                                                reply_markup=keyboard_inline)
             return
 
+
+        clean_text_to_translate = clean_text_to_translate.replace('/f', '').strip()
+
         msg = await bot.send_message(chat_id=message.from_user.id, text='ждите...')
         clean_path_synth_voice = tts('en', clean_text_to_translate)
-        translation, synonims_translation, phonetic = google_translate.translate(clean_text_to_translate)
+        # translation, synonims_translation, phonetic = google_translate.translate(clean_text_to_translate)
+
+        translation = await get_reverso_translation(clean_text_to_translate)
+        synonims_translation = ''
+        phonetic = ''
 
         with open(clean_path_synth_voice, mode="rb") as f:
             ff = f.read()
