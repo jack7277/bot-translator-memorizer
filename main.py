@@ -54,7 +54,6 @@ dashboard_db = models.DatabaseMixinModel()
 dashboard_db.init_db()
 
 
-
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
     """
@@ -89,7 +88,7 @@ async def prepare_bot_answer(clean_text_to_translate, phonetic, translation, syn
     return bot_answer_to_user
 
 
-async def prepare_short_bot_answer(clean_text_to_translate, phonetic, translation, syn_answer:str):
+async def prepare_short_bot_answer(clean_text_to_translate, phonetic, translation, syn_answer: str):
     bot_answer_to_user = f'{clean_text_to_translate}       {phonetic}\n'
     bot_answer_to_user += f'{str(translation)}'
     try:
@@ -99,8 +98,8 @@ async def prepare_short_bot_answer(clean_text_to_translate, phonetic, translatio
         max = len(tmp) if len(tmp) < 7 else 7
         for i in range(0, max):
             bot_answer_to_user += f'{tmp[i]}'
-            if (i+1) != max:
-              bot_answer_to_user += ', '
+            if (i + 1) != max:
+                bot_answer_to_user += ', '
     except:
         pass
     return bot_answer_to_user
@@ -110,6 +109,19 @@ async def get_reverso_translation(cttt):  # clean text to translate
     reverso_translation = list(client.get_translations(cttt))
     translation = ", ".join(reverso_translation)
     return translation
+
+
+async def get_reverso_synonims(cttt):
+    synonims_translation = '\n'
+    samples = client.get_translation_samples(cttt, cleanup=True)
+    try:
+        for i, context in enumerate(samples):
+            synonims_translation += context[0] + '\n'
+            if i > 2:
+                break
+    except:
+        pass
+    return synonims_translation
 
 
 @dp.message()
@@ -126,16 +138,15 @@ async def echo_handler(message: types.Message) -> None:
         logger.info(f'{message.from_user.full_name}, {message.from_user.id}: {message.text}')
         # ищу в бд такое слово/фразу
         clean_text_to_translate = message.text.strip().lower().replace('\n', ' ')
-        if len(clean_text_to_translate)>200:
+        if len(clean_text_to_translate) > 200:
             await bot.send_message(chat_id=message.from_user.id,
                                    text='чота больно длинная фраза, не хочу ничего делать сорян')
             return
-        
+
         db_obj = (models.session
                   .query(models.Task)
                   .filter(models.Task.clean_text_to_translate == clean_text_to_translate)
                   .all())
-
 
         # в базе нашел такое слово/фразу
         if len(db_obj) > 0 and not clean_text_to_translate.endswith('/f'):
@@ -144,7 +155,8 @@ async def echo_handler(message: types.Message) -> None:
             with open(obj.path_to_synth_voice, mode="rb") as f:
                 ff = f.read()
             link_to_file = BufferedInputFile(file=ff, filename=obj.path_to_synth_voice)
-            bot_answer_to_user = await prepare_bot_answer(obj.clean_text_to_translate, obj.phonetic, obj.translation, obj.synonims_translation)
+            bot_answer_to_user = await prepare_bot_answer(obj.clean_text_to_translate, obj.phonetic, obj.translation,
+                                                          obj.synonims_translation)
             logger.info(f"{bot_answer_to_user}")
             await message.delete()  # удаляю запрос юзера
             bot_message = await bot.send_voice(chat_id=message.chat.id,
@@ -153,7 +165,6 @@ async def echo_handler(message: types.Message) -> None:
                                                reply_markup=keyboard_inline)
             return
 
-
         clean_text_to_translate = clean_text_to_translate.replace('/f', '').strip()
 
         msg = await bot.send_message(chat_id=message.from_user.id, text='ждите...')
@@ -161,13 +172,14 @@ async def echo_handler(message: types.Message) -> None:
         # translation, synonims_translation, phonetic = google_translate.translate(clean_text_to_translate)
 
         translation = await get_reverso_translation(clean_text_to_translate)
-        synonims_translation = ''
+        synonims_translation = await get_reverso_synonims(clean_text_to_translate)
         phonetic = ''
 
         with open(clean_path_synth_voice, mode="rb") as f:
             ff = f.read()
         f = BufferedInputFile(file=ff, filename=clean_path_synth_voice)
-        bot_answer_to_user = await prepare_bot_answer(clean_text_to_translate, phonetic, translation, synonims_translation)
+        bot_answer_to_user = await prepare_bot_answer(clean_text_to_translate, phonetic, translation,
+                                                      synonims_translation)
         logger.info(f"{bot_answer_to_user}")
         bot_message = await bot.send_voice(chat_id=message.chat.id,
                                            voice=f,
@@ -204,11 +216,13 @@ async def reminder(msg: str):
             ff = f.read()
         link_to_file = BufferedInputFile(file=ff, filename=obj.path_to_synth_voice)
 
-        bot_answer_to_user = await prepare_short_bot_answer(obj.clean_text_to_translate, obj.phonetic, obj.translation, obj.synonims_translation)
+        bot_answer_to_user = await prepare_short_bot_answer(obj.clean_text_to_translate, obj.phonetic, obj.translation,
+                                                            obj.synonims_translation)
 
         button = InlineKeyboardButton(text="Удолить", callback_data="button_delete")
         keyboard_inline = InlineKeyboardMarkup(inline_keyboard=[[button]], row_width=1)
-        await bot.send_voice(chat_id=user_id, voice=link_to_file, caption=bot_answer_to_user, reply_markup=keyboard_inline)
+        await bot.send_voice(chat_id=user_id, voice=link_to_file, caption=bot_answer_to_user,
+                             reply_markup=keyboard_inline)
 
 
 @dp.callback_query(lambda c: c.data == 'button_delete')
