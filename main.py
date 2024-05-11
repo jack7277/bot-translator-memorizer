@@ -195,7 +195,7 @@ async def echo_handler(message: types.Message) -> None:
         models.DatabaseMixinModel.db_add(task)
 
         await message.delete()  # удаляю запрос юзера
-        await bot.delete_message(chat_id=msg.chat.id, message_id=msg.message_id)  # удаляю фразу пожалуйста ждите
+        await bot.delete_message(chat_id=msg.chat.id, message_id=msg.message_id)  # удаляю фразу ждите
 
     except Exception as err:
         logger.warning(str(err))
@@ -211,7 +211,7 @@ async def reminder(msg: str):
               .filter(models.Task.clean_text_to_translate == clean_original_text)
               .all())
     if len(db_obj) > 0:
-        obj = db_obj[0]
+        obj = db_obj[-1]
         with open(obj.path_to_synth_voice, mode="rb") as f:
             ff = f.read()
         link_to_file = BufferedInputFile(file=ff, filename=obj.path_to_synth_voice)
