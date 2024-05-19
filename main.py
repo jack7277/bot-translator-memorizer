@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 
+from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 from loguru import logger
 from gtts import gTTS
@@ -11,8 +12,7 @@ import sys
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
-from aiogram.types import Message, BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, \
-    KeyboardButton
+from aiogram.types import Message, BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.markdown import hbold
 
 from apscheduler.executors.pool import ProcessPoolExecutor
@@ -43,7 +43,7 @@ EMAIL_PWD = os.environ.get("EMAIL_PWD")
 client = Client("en", "ru", credentials=(EMAIL, EMAIL_PWD))
 
 dp = Dispatcher()
-bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 logger.add("logs\log.log", rotation="100 MB")
 logger.info('Start')
 
