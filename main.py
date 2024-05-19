@@ -297,8 +297,12 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    dashboard_db = models.DatabaseMixinModel()
-    dashboard_db.init_db()
+    while True:
+        try:
+            dashboard_db = models.DatabaseMixinModel()
+            dashboard_db.init_db()
 
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    asyncio.run(main())
+            logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+            asyncio.run(main())
+        except:
+            pass
