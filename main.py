@@ -18,7 +18,6 @@ from aiogram.utils.markdown import hbold
 from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-import google_translate
 import models
 
 from reverso_context_api import Client
@@ -116,8 +115,9 @@ async def get_reverso_synonims(cttt):
     samples = client.get_translation_samples(cttt, cleanup=True)
     try:
         for i, context in enumerate(samples):
-            synonims_translation += context[0] + '\n'
-            if i > 2:
+            if i == 0: continue
+            synonims_translation += context[0] + '\n\n'
+            if i > 3:
                 break
     except:
         pass
