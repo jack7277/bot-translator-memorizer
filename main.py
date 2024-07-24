@@ -22,15 +22,6 @@ import models
 
 from reverso_context_api import Client
 
-executors = {
-    'default': {'type': 'threadpool', 'max_workers': 200},
-    'processpool': ProcessPoolExecutor(max_workers=50)
-}
-job_defaults = {
-    'coalesce': False,
-    'max_instances': 30
-}
-
 scheduler = AsyncIOScheduler()
 words = []
 
@@ -39,6 +30,7 @@ TOKEN = os.environ.get("TOKEN")
 EMAIL = os.environ.get("EMAIL")
 EMAIL_PWD = os.environ.get("EMAIL_PWD")
 
+# направление перевода жестко EN -> RU
 client = Client("en", "ru", credentials=(EMAIL, EMAIL_PWD))
 
 dp = Dispatcher()
@@ -59,7 +51,8 @@ async def command_start_handler(message: Message) -> None:
     This handler receives messages with `/start` command
     """
     await message.answer(f"Привет, {hbold(message.from_user.full_name)}!\n"
-                         f"Напиши мне слово или фразу на английском и я сделаю перевод. Необходимо разрешить боту слать вам голосовые сообщения.")
+                         f"Напиши мне слово или фразу на английском и я сделаю перевод. "
+                         f"Необходимо разрешить боту слать вам голосовые сообщения.")
 
 
 def tts(lang, clean_text_to_translate):
@@ -171,8 +164,11 @@ async def echo_handler(message: types.Message) -> None:
         clean_path_synth_voice = tts('en', clean_text_to_translate)
         # translation, synonims_translation, phonetic = google_translate.translate(clean_text_to_translate)
 
-        translation = await get_reverso_translation(clean_text_to_translate)
-        synonims_translation = await get_reverso_synonims(clean_text_to_translate)
+        reverso = get_reverso_translation(clean_text_to_translate)
+        translation = await asyncio.wait_for(reverso, 5)
+
+        synonims = get_reverso_synonims(clean_text_to_translate)
+        synonims_translation = await asyncio.wait_for(synonims, 5)
         phonetic = ''
 
         with open(clean_path_synth_voice, mode="rb") as f:
@@ -189,10 +185,10 @@ async def echo_handler(message: types.Message) -> None:
         user_id = message.from_user.id
         chat_id = message.chat.id
 
-        task = models.Task(chat_id=chat_id, clean_text_to_translate=clean_text_to_translate,
+        reverso = models.Task(chat_id=chat_id, clean_text_to_translate=clean_text_to_translate,
                            phonetic=phonetic, translation=translation, synonims_translation=synonims_translation
                            , path_to_synth_voice=clean_path_synth_voice)
-        models.DatabaseMixinModel.db_add(task)
+        models.DatabaseMixinModel.db_add(reverso)
 
         await message.delete()  # удаляю запрос юзера
         await bot.delete_message(chat_id=msg.chat.id, message_id=msg.message_id)  # удаляю фразу ждите
