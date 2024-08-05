@@ -117,12 +117,7 @@ async def get_reverso_synonims(cttt):
     return synonims_translation
 
 
-@dp.message()
-async def echo_handler(message: types.Message) -> None:
-    """
-    Handler will forward receive a message back to the sender
-    By default, message handler will handle all message types (like a text, photo, sticker etc.)
-    """
+async def proc(message: types.Message):
     try:
         ikb = InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url="base.html"))
         # kb = KeyboardButton(text="Перейти", web_app=WebAppInfo(url="base.html"))
@@ -195,6 +190,16 @@ async def echo_handler(message: types.Message) -> None:
 
     except Exception as err:
         logger.warning(str(err))
+
+@dp.message()
+async def echo_handler(message: types.Message) -> None:
+    """
+    Handler will forward receive a message back to the sender
+    By default, message handler will handle all message types (like a text, photo, sticker etc.)
+    """
+    task1 = asyncio.Task(proc(message))
+    await task1
+
 
 
 async def reminder(msg: str):
