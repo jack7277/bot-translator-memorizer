@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from time import sleep
 
 from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
@@ -15,7 +16,6 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.markdown import hbold
 
-from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import models
@@ -181,8 +181,8 @@ async def proc(message: types.Message):
         chat_id = message.chat.id
 
         reverso = models.Task(chat_id=chat_id, clean_text_to_translate=clean_text_to_translate,
-                           phonetic=phonetic, translation=translation, synonims_translation=synonims_translation
-                           , path_to_synth_voice=clean_path_synth_voice)
+                              phonetic=phonetic, translation=translation, synonims_translation=synonims_translation
+                              , path_to_synth_voice=clean_path_synth_voice)
         models.DatabaseMixinModel.db_add(reverso)
 
         await message.delete()  # удаляю запрос юзера
@@ -190,6 +190,7 @@ async def proc(message: types.Message):
 
     except Exception as err:
         logger.warning(str(err))
+
 
 @dp.message()
 async def echo_handler(message: types.Message) -> None:
@@ -200,6 +201,14 @@ async def echo_handler(message: types.Message) -> None:
     task1 = asyncio.Task(proc(message))
     await task1
 
+
+# async def echo_handler(message: types.Message) -> None:
+#     """
+#     Handler will forward receive a message back to the sender
+#     By default, message handler will handle all message types (like a text, photo, sticker etc.)
+#     """
+#     task1 = asyncio.Task(proc(message))
+#     await task1
 
 
 async def reminder(msg: str):
@@ -222,8 +231,11 @@ async def reminder(msg: str):
 
         button = InlineKeyboardButton(text="Удолить", callback_data="button_delete")
         keyboard_inline = InlineKeyboardMarkup(inline_keyboard=[[button]], row_width=1)
-        await bot.send_voice(chat_id=user_id, voice=link_to_file, caption=bot_answer_to_user,
-                             reply_markup=keyboard_inline)
+        try:
+            await bot.send_voice(chat_id=user_id, voice=link_to_file, caption=bot_answer_to_user,
+                                 reply_markup=keyboard_inline)
+        except:
+            pass
 
 
 @dp.callback_query(lambda c: c.data == 'button_delete')
@@ -269,6 +281,7 @@ async def button(callback_query: types.CallbackQuery):
     req = f'{user_id};{req_text}'
 
     for rem_x in reminder_list:
+        # noinspection PyTypeChecker
         job = scheduler.add_job(func=reminder, trigger='date', args=[req], misfire_grace_time=None,
                                 run_date=rem_x)
         # print(str(job))
@@ -285,7 +298,8 @@ async def button(callback_query: types.CallbackQuery):
         await bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=keyboard_inline)
     except Exception as err:
         # повторное нажатие кнопки приводит к ошибке что менять нечего, кнопка уже изменена на ГОТОВО
-        print(str(err))
+        # print(str(err))
+        pass
 
     # await asyncio.sleep(5)
     # await bot.delete_message(chat_id=chat_id, message_id=msg_notify.message_id)
@@ -294,7 +308,7 @@ async def button(callback_query: types.CallbackQuery):
 async def main() -> None:
     scheduler.add_jobstore('sqlalchemy', url='sqlite:///jobs.sqlite')
     scheduler.start()
-    await dp.start_polling(bot, polling_timeout=600)
+    await dp.start_polling(bot, polling_timeout=60)
 
 
 if __name__ == "__main__":
@@ -306,4 +320,5 @@ if __name__ == "__main__":
             logging.basicConfig(level=logging.INFO, stream=sys.stdout)
             asyncio.run(main())
         except:
+            sleep(30)
             pass
