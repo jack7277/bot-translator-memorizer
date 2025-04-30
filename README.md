@@ -4,20 +4,26 @@
 
 
 Период напоминаний:
+r1 = 12 или 15 часов дня
 
-через 60 минут с даты старта
+r2 = r1 + timedelta(seconds=5)
 
-Через 5 часов после последнего события
+r3 = r1 + timedelta(minutes=60)
 
-Через день, три дня подряд
+r4 = r3 + timedelta(hours=5)
 
-Через 5 дней
+r5 = r1 + timedelta(days=1)
 
-Через 2 недели
+r6 = r5 + timedelta(days=1)
 
-Через 4 недели
+r7 = r6 + timedelta(days=1)
 
-Через 10 недель
+r8 = r7 + timedelta(days=5)
 
-Через 16 недель
+r9 = r8 + timedelta(weeks=2)
 
+r10 = r9 + timedelta(weeks=4)
+
+r11 = r10 + timedelta(weeks=10)
+
+r12 = r11 + timedelta(weeks=16)
