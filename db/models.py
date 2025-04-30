@@ -1,15 +1,17 @@
 """
 Модели и методы работы с БД через SQLAlchemy.
 """
+import asyncio
 from datetime import datetime
+
 from loguru import logger
-from sqlalchemy import (Column, Integer, String, DateTime, create_engine, Boolean)
+from sqlalchemy import (Column, Integer, String, create_engine)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-
 # декларирование БД
+# Да, работа с БД синхронная, на небольших нагрузках пока так
 base = declarative_base()
 metadata = base.metadata
 engine = create_engine('sqlite:///bot_db.sqlite')
@@ -17,8 +19,23 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 
+async def db_request(clean_text):
+    req = (session
+           .query(Task)
+           .filter(Task.clean_text_to_translate == clean_text)
+           .all())
+    return req
+
+
+async def delete_old_records(db_records):
+    for record in db_records:
+        session.delete(record)
+    session.commit()
+
+
 class DatabaseMixinModel:
     """Модель с общими методами для моделей базы данных"""
+
     @staticmethod
     def init_db():
         engine.connect()
@@ -57,6 +74,7 @@ class Task(base, DatabaseMixinModel):
     """
     """
     __tablename__ = 'data_table'
+
     # __table_args__ = {
     #     'schema': 'data_schema'
     # }
@@ -82,3 +100,12 @@ class Task(base, DatabaseMixinModel):
 
     def __str__(self):
         return f'Class _str_'
+
+
+async def main():
+    t = await db_request('test')
+    pass
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
