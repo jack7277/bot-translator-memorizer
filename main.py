@@ -19,6 +19,7 @@ from bot_answer import bot_answers
 from db import models
 from google_services import google_translate
 from google_services.text_to_speech import tts
+from reverso import reverso_translate
 
 scheduler = AsyncIOScheduler()
 dp = Dispatcher()
@@ -137,7 +138,13 @@ async def user_input_processing(message: types.Message):
         # генерирую mp3 движком гугла text to speech
         clean_path_synth_voice = tts('en', clean_text_to_translate)
 
-        translation, phonetic, definition, using_examples = await google_translate.google_transle(clean_text_to_translate)
+        # Работает с гуглом, но иногда возвращает мусор
+        # translation, phonetic, definition, using_examples = await (google_translate
+        #                                                            .google_transle(clean_text_to_translate))
+
+        # reverso через selenium
+        translation, phonetic, definition, using_examples = await (reverso_translate
+                                                                   .translate_reverso_selenium(clean_text_to_translate))
 
         # reverso = reverso_translate.get_reverso_translation(clean_text_to_translate)
         # translation = await asyncio.wait_for(reverso, 5)
