@@ -146,6 +146,7 @@ async def user_input_processing(message: types.Message):
         translation, phonetic, definition, using_examples = await (reverso_translate
                                                                    .translate_reverso_selenium(clean_text_to_translate))
 
+        # Этот способ через псевдо-апи больше не работает
         # reverso = reverso_translate.get_reverso_translation(clean_text_to_translate)
         # translation = await asyncio.wait_for(reverso, 5)
         # synonims = reverso_translate.get_reverso_synonims(clean_text_to_translate)

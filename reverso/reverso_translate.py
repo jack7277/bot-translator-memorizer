@@ -76,20 +76,22 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
         transliteration_text = ''
 
     translation_text = ''
-    try:
-        # элементы с переводом
-        translations = (driver
-                        .find_elements(By.XPATH,
-                                       "//*[@id='translations-content']/*[contains(@class, 'translation')]"))
-        for i, translation in enumerate(translations):
-            # if i > MAX_NUM: break
-            translation_text += translation.text + "; "
-        translation_text = re.sub(r'[; ]+$', '', translation_text)  # Удаляет запятые и пробелы в конце
+    # элементы с переводом
+    translations = (driver
+                    .find_elements(By.XPATH,
+                                   "//*[@id='translations-content']/*[contains(@class, 'translation')]"))
+    for i, translation in enumerate(translations):
+        if i > MAX_NUM: break
+        translation_text += translation.text + "; "
+    translation_text = re.sub(r'[; ]+$', '', translation_text)  # Удаляет запятые и пробелы в конце
 
+    isNullOrWhiteSpace = lambda s: not s or s.isspace()
 
-    except:
+    # если тру, то ничего не нашел в прошлый раз
+    if isNullOrWhiteSpace(translation_text):
         # Ищем элемент с переводом
-        translation = driver.find_element(By.ID, 'top-results')
+        # translation = driver.find_element(By.ID, 'top-results')
+        translation = driver.find_element(By.XPATH, "//*[contains(@class, 'trg  ltr')]//*[@class='text']")
         translation_text = translation.text
 
     # Примеры
@@ -102,4 +104,3 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
     # translation, transliteration, definition, using_examples
     driver.quit()
     return translation_text, transliteration_text, '', using_examples
-

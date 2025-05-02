@@ -6,9 +6,14 @@ async def full_answer(clean_text_to_translate, phonetic, translation, definition
     Подготовка полного текста ответа бота
     Слово - транскрипция, перевод, примеры
     """
+    if definition != '':
+        add_definition = f'Определение: {definition}\n\n'
+    else:
+        add_definition = ''
+
     bot_answer_to_user = (f'{clean_text_to_translate}       {phonetic}\n'
                           f'{str(translation)}\n\n'
-                          f'Определение: {definition}\n\n'
+                          f'{add_definition}'
                           f'Примеры: {using_examples}')
     return bot_answer_to_user
 
