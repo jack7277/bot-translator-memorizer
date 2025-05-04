@@ -48,7 +48,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
-    MAX_NUM = 4
+    """
+    Перевод с помощью сайта reverso.net через selenium
+    @param word: слово или фраза для перевода
+    @param from_lang: не используется, направление en-ru, ru-en сайт выбирает сайт исходя из входного текста
+    @param to_lang: -/-
+    @return: Возвращается кортеж # Перевод, Транслитерация, Определение (не доделано), Примеры использования
+    """
+    MAX_NUM = 4  # возвращать с сайта только 5 переводов и 3 примера
 
     url = f'https://context.reverso.net/перевод/английский-русский/{word}'
 
@@ -62,7 +69,7 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
     driver.get(url)
     driver.implicitly_wait(1)
 
-    # Явное ожидание появления блока с переводом
+    # Явное ожидание появления блока с переводом через ожидание блока Примеры
     wait = WebDriverWait(driver, 10)  # Ждем до 10 секунд
     context_box = wait.until(
         EC.presence_of_element_located((By.CLASS_NAME, 'example'))
@@ -76,7 +83,7 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
         transliteration_text = ''
 
     translation_text = ''
-    # элементы с переводом
+    # элементы с переводом первая попытка
     translations = (driver
                     .find_elements(By.XPATH,
                                    "//*[@id='translations-content']/*[contains(@class, 'translation')]"))
@@ -87,10 +94,9 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
 
     isNullOrWhiteSpace = lambda s: not s or s.isspace()
 
-    # если тру, то ничего не нашел в прошлый раз
+    # если тру, то ничего не нашел в прошлый раз, ищу перевод вторая попытка
     if isNullOrWhiteSpace(translation_text):
         # Ищем элемент с переводом
-        # translation = driver.find_element(By.ID, 'top-results')
         translation = driver.find_element(By.XPATH, "//*[contains(@class, 'trg  ltr')]//*[@class='text']")
         translation_text = translation.text
 
@@ -98,7 +104,7 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
     examples = driver.find_elements(By.CLASS_NAME, 'example')
     using_examples = ''
     for i, example in enumerate(examples):
-        if i > MAX_NUM: break
+        if i > MAX_NUM - 2: break
         using_examples += example.text + '\n\n'
 
     # translation, transliteration, definition, using_examples
