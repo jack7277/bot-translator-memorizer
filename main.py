@@ -15,11 +15,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from loguru import logger
 
-from bot_answer import bot_answers
-from db import models
-from google_services import google_translate
-from google_services.text_to_speech import tts
-from reverso import reverso_translate
+from src.bot_answer import bot_answers
+from src.db import models
+from src.google_services.text_to_speech import tts
+from src.reverso import reverso_translate
 
 scheduler = AsyncIOScheduler()
 dp = Dispatcher()
