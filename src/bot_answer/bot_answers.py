@@ -23,7 +23,7 @@ async def short_answer(clean_text_to_translate, phonetic, translation, using_exa
     Короткий ответ бота для повторов, максимум 7 синонимов
     """
     bot_answer_to_user = f'{clean_text_to_translate}       {phonetic}\n\n'
-    bot_answer_to_user += f'{str(translation)}'
+    bot_answer_to_user += f'{str(translation)}\n'
     try:
         tmp = str(using_examples).split(',')
         bot_answer_to_user += f'\n'
