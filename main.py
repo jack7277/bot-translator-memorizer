@@ -90,13 +90,18 @@ def tg(method: str, req_timeout: int = 30, **params):
     Для методов с файлами передавать открытый файловый объект (multipart).
     req_timeout — таймаут соединения; не путать с параметром timeout самого метода.
     """
-    params = {k: (json.dumps(v) if isinstance(v, (dict, list)) else v)
-              for k, v in params.items() if v is not None}
-    if any(hasattr(v, "read") for v in params.values()):
-        resp = _session.post(f"{API_BASE}/{method}", data=params,
+    files = {k: (os.path.basename(v.name), v, "application/octet-stream")
+             for k, v in params.items() if hasattr(v, "read")}
+    form = {}
+    for k, v in params.items():
+        if k in files or v is None:
+            continue
+        form[k] = json.dumps(v) if isinstance(v, (dict, list)) else v
+    if files:
+        resp = _session.post(f"{API_BASE}/{method}", data=form, files=files,
                              timeout=req_timeout, allow_redirects=False)
     else:
-        resp = _session.post(f"{API_BASE}/{method}", json=params,
+        resp = _session.post(f"{API_BASE}/{method}", json=form,
                              timeout=req_timeout, allow_redirects=False)
     data = resp.json()
     if not data.get("ok"):
