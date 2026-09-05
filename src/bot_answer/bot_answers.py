@@ -1,7 +1,7 @@
 MAX_SYNONYMS = 7
 
 
-async def full_answer(clean_text_to_translate, phonetic, translation, definition='', using_examples=''):
+def full_answer(clean_text_to_translate, phonetic, translation, definition='', using_examples=''):
     """
     Подготовка полного текста ответа бота
     Слово - транскрипция, перевод, примеры
@@ -18,7 +18,7 @@ async def full_answer(clean_text_to_translate, phonetic, translation, definition
     return bot_answer_to_user
 
 
-async def short_answer(clean_text_to_translate, phonetic, translation, using_examples: str):
+def short_answer(clean_text_to_translate, phonetic, translation, using_examples: str):
     """
     Короткий ответ бота для повторов, максимум 7 синонимов
     """

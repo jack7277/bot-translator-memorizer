@@ -1,7 +1,6 @@
 """
 Модели и методы работы с БД через SQLAlchemy.
 """
-import asyncio
 from datetime import datetime
 
 from loguru import logger
@@ -19,7 +18,7 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 
-async def db_request(clean_text):
+def db_request(clean_text):
     req = (session
            .query(Task)
            .filter(Task.clean_text_to_translate == clean_text)
@@ -27,7 +26,7 @@ async def db_request(clean_text):
     return req
 
 
-async def delete_old_records(db_records):
+def delete_old_records(db_records):
     for record in db_records:
         session.delete(record)
     session.commit()
@@ -102,10 +101,10 @@ class Task(base, DatabaseMixinModel):
         return f'Class _str_'
 
 
-async def main():
-    t = await db_request('test')
+def main():
+    t = db_request('test')
     pass
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
