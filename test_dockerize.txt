@@ -1,0 +1,107 @@
+Вот пошаговая инструкция:
+
+1. Создайте Dockerfile в корне проекта:
+
+```Dockerfile
+# Используем официальный образ Python
+FROM python:3.11-slim
+
+# Устанавливаем зависимости для venv
+RUN apt-get update && apt-get install -y \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем рабочую директорию
+WORKDIR /app
+
+# Копируем необходимые файлы
+COPY requirements.txt .
+COPY main .
+COPY src/ ./src/
+COPY pronounce/ ./pronounce/
+COPY .env .
+COPY bot_db.sqlite .
+COPY jobs.sqlite .
+
+# Создаем и активируем виртуальное окружение
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Устанавливаем зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Команда для запуска приложения
+CMD ["python", "main"]
+```
+
+2. Сборка Docker образа:
+```bash
+docker build -t my-python-app .
+```
+
+3. Запуск контейнера:
+```bash
+docker run -d \
+  --name my-app \
+  -v ./bot_db.sqlite:/app/bot_db.sqlite \
+  -v ./jobs.sqlite:/app/jobs.sqlite \
+  my-python-app
+```
+
+Для обновления кода в контейнере:
+
+1. Внесите изменения в исходный код
+2. Перестройте Docker образ:
+```bash
+docker build -t my-python-app .
+```
+3. Остановите и удалите старый контейнер:
+```bash
+docker stop my-app && docker rm my-app
+```
+4. Запустите новый контейнер:
+```bash
+docker run -d \
+  --name my-app \
+  -v ./bot_db.sqlite:/app/bot_db.sqlite \
+  -v ./jobs.sqlite:/app/jobs.sqlite \
+  my-python-app
+```
+
+Оптимизированный вариант с использованием .dockerignore:
+1. Создайте .dockerignore в корне проекта:
+```
+.git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+env/
+```
+
+Рекомендации:
+1. Для базы данных используйте volumes для сохранения данных между обновлениями
+2. Для частых обновлений рассмотрите:
+   - Использование bind mounts для кода (но потребуется переустановка зависимостей)
+   - Создайте скрипт обновления
+3. Для production используйте multi-stage build
+4. Для управления контейнерами используйте docker-compose
+
+Пример docker-compose.yml:
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - ./bot_db.sqlite:/app/bot_db.sqlite
+      - ./jobs.sqlite:/app/jobs.sqlite
+    restart: unless-stopped
+```
+
+Для обновления с docker-compose:
+```bash
+docker-compose up -d --build
+```

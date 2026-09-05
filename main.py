@@ -1,12 +1,19 @@
 import asyncio
+import base64
 import logging
 import os
+import random
+import re
+import socket
 import sys
 from datetime import datetime, timedelta
 from time import sleep
 
+import requests
 from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp.resolver import AbstractResolver
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import Message, BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
@@ -25,7 +32,71 @@ dp = Dispatcher()
 
 load_dotenv()
 BOT_TOKEN = os.environ.get("TOKEN")
-bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+PROXY_PAGE_URL = "https://mtpro.xyz/socks5-ru"
+# Доступный (незаблокированный) IP Bot API. DNS отдаёт заблокированный адрес,
+# поэтому резолвим сами. Сертификат и SNI остаются на домен, проверяются как обычно.
+TELEGRAM_API_IP = "149.154.167.220"
+
+
+class StaticApiResolver(AbstractResolver):
+    """Резолвит заданные хосты в фиксированные IP в обход DNS."""
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._mapping = mapping
+
+    async def resolve(self, host, port=0, family=socket.AF_INET):
+        return [{
+            "hostname": host,
+            "host": self._mapping.get(host, host),
+            "port": port,
+            "family": family,
+            "proto": 0,
+            "flags": 0,
+        }]
+
+    async def close(self):
+        pass
+
+
+def get_proxy_url() -> str | None:
+    try:
+        page = requests.get(PROXY_PAGE_URL, timeout=10)
+        page.raise_for_status()
+        script_urls = re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', page.text)
+        script_url = next(url for url in script_urls if "autoptimize" in url)
+        script_url = requests.compat.urljoin(PROXY_PAGE_URL, script_url)
+
+        script = requests.get(script_url, timeout=10)
+        script.raise_for_status()
+        encoded = re.search(r"eval\(atob\('([^']+)'\)\)", script.text).group(1)
+        decoded = base64.b64decode(encoded).decode("utf-8")
+        proxies = re.findall(r'"ip":"([^" ]+)","port":(\d+)', decoded)
+        proxy_ip, proxy_port = random.choice(proxies)
+        return f"socks5://{proxy_ip}:{proxy_port}"
+    except (requests.RequestException, AttributeError, IndexError,
+            StopIteration, TypeError, ValueError) as err:
+        logger.warning(f"Could not load proxy list: {err}")
+        return None
+
+
+def create_bot() -> Bot:
+    # MTProto-прокси (например, 127.0.0.1:1443 от TgWsProxy) не подходит:
+    # aiogram обращается к Bot API по обычному HTTPS, а не по MTProto.
+    # PROXY из окружения (http://... или socks5://...) — опционально.
+    proxy = os.environ.get("PROXY")
+    if proxy:
+        session = AiohttpSession(proxy=proxy)
+    else:
+        session = AiohttpSession()
+        # DNS отдаёт заблокированный IP — подменяем резолвер на статический
+        session._connector_init["resolver"] = StaticApiResolver(
+            {"api.telegram.org": TELEGRAM_API_IP})
+    logger.info(f"Telegram API IP: {TELEGRAM_API_IP}, proxy: {proxy or 'none'}")
+    return Bot(BOT_TOKEN, session=session,
+               default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+
+
+bot = create_bot()
 
 # Constants
 MAX_PHRASE_LENGTH = 200
@@ -283,10 +354,10 @@ if __name__ == "__main__":
     # на случай падения - рестарт бота
     while True:
         try:
-            logger.add("logs\log.log", rotation="100 MB")
+            logger.add("logs\\log.log", rotation="100 MB")
             logger.info('Start')
 
-            bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+            bot = create_bot()
 
             # базовая кнопка Запомнить на переводе, обработки - button_remember
             button2 = InlineKeyboardButton(text="⇈ЗАПОМНИ⇈", callback_data="button_remember")
@@ -300,5 +371,5 @@ if __name__ == "__main__":
 
         except Exception as e:
             print(str(e))
-            print('Restart in 30 sec')
-            sleep(30)
+            print('Restart in 5 sec')
+            sleep(5)

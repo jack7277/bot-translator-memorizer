@@ -1,41 +1,39 @@
 import os
 
 from dotenv import load_dotenv
-from reverso_context_api import Client
+# from reverso_context_api import Client
 
 load_dotenv()
-EMAIL = os.environ.get("EMAIL")
-EMAIL_PWD = os.environ.get("EMAIL_PWD")
 # направление перевода жестко EN -> RU
-client = Client("en", "ru", credentials=(EMAIL, EMAIL_PWD))
+# client = Client("en", "ru")
 
 
 # @deprecated("Больше не работает")
-async def get_reverso_translation(cttt):  # clean text to translate
-    """
-    получение перевода с сайта reverso
-    """
-    reverso_translation = list(client.get_translations(cttt))
-    translation = ", ".join(reverso_translation)
-    return translation
+# async def get_reverso_translation(cttt):  # clean text to translate
+#     """
+#     получение перевода с сайта reverso
+#     """
+#     reverso_translation = list(client.get_translations(cttt))
+#     translation = ", ".join(reverso_translation)
+#     return translation
 
 
 # @deprecated("Больше не работает")
-async def get_reverso_synonims(cttt):
-    """
-    Получение синонимов слова с сайта реверсо
-    """
-    synonims_translation = '\n'
-    samples = client.get_translation_samples(cttt, cleanup=True)
-    try:
-        for i, context in enumerate(samples):
-            if i == 0: continue
-            synonims_translation += context[0] + '\n\n'
-            if i > 3:
-                break
-    except:
-        pass
-    return synonims_translation
+# async def get_reverso_synonims(cttt):
+#     """
+#     Получение синонимов слова с сайта реверсо
+#     """
+#     synonims_translation = '\n'
+#     samples = client.get_translation_samples(cttt, cleanup=True)
+#     try:
+#         for i, context in enumerate(samples):
+#             if i == 0: continue
+#             synonims_translation += context[0] + '\n\n'
+#             if i > 3:
+#                 break
+#     except:
+#         pass
+#     return synonims_translation
 
 
 import re
@@ -63,7 +61,7 @@ async def translate_reverso_selenium(word, from_lang='en', to_lang='ru'):
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-    options.add_argument("--headless")  # Работает в фоне
+    # options.add_argument("--headless")  # Работает в фоне
 
     driver = webdriver.Chrome(options=options)
     driver.get(url)
