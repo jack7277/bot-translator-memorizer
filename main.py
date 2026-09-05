@@ -6,9 +6,11 @@ import html
 import json
 import logging
 import os
+import socket
+import ssl
 import sys
 from datetime import datetime, timedelta
-from time import sleep
+from time import monotonic, sleep
 
 import requests
 import urllib3
@@ -24,26 +26,36 @@ from src.reverso import reverso_translate
 
 load_dotenv()
 BOT_TOKEN = os.environ.get("TOKEN")
+PROXY = os.environ.get("PROXY")  # http://... или socks5://... — обычный прокси, если есть
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # Constants
 MAX_PHRASE_LENGTH = 200
 
-# Доступный (незаблокированный) IP Bot API. DNS отдаёт заблокированный адрес,
-# поэтому подключаемся к IP, а SNI и проверка сертификата остаются на домене.
-TELEGRAM_API_IP = "149.154.167.220"
+# DNS телеграма отдаёт заблокированный адрес, а IP-блокировки неравномерны:
+# ищем живой IP сами (DoH + системный DNS + резервный список).
+# Сертификат и SNI остаются на домене api.telegram.org, проверяются как обычно.
+TELEGRAM_HOST = "api.telegram.org"
+FALLBACK_IPS = ["149.154.167.220", "149.154.166.110", "149.154.175.100",
+                "149.154.175.50", "149.154.167.51", "149.154.167.91",
+                "91.108.56.130"]
+DOH_URLS = ["https://dns.google/resolve", "https://cloudflare-dns.com/dns-query"]
+
+# Текущий живой IP; подменяется при сбоях, читается из _PinnedHTTPSConnection
+_PIN = {"ip": None}
 
 
 class _PinnedHTTPSConnection(urllib3.connection.HTTPSConnection):
-    """Соединяется с фиксированным IP, но Host и SNI остаются api.telegram.org."""
+    """Соединяется с выбранным IP, но Host и SNI остаются api.telegram.org."""
 
     def _new_conn(self):
-        if self.host != "api.telegram.org":
+        # при работе через прокси резолвинг на стороне прокси — пиннинг не нужен
+        if PROXY or self.host != TELEGRAM_HOST or not _PIN["ip"]:
             return super()._new_conn()
         from urllib3.util import connection as _urllib3_conn
         try:
             return _urllib3_conn.create_connection(
-                (TELEGRAM_API_IP, self.port),
+                (_PIN["ip"], self.port),
                 self.timeout,
                 source_address=self.source_address,
                 socket_options=self.socket_options,
@@ -72,6 +84,93 @@ class _PinnedHTTPAdapter(HTTPAdapter):
 
 _session = requests.Session()
 _session.mount("https://", _PinnedHTTPAdapter())
+if PROXY:
+    _session.proxies = {"http": PROXY, "https": PROXY}
+
+
+def _fresh_ips():
+    """Актуальные адреса api.telegram.org из неотравленного DNS (DoH) и системного DNS."""
+    ips = []
+    for url in DOH_URLS:
+        try:
+            r = requests.get(url, params={"name": TELEGRAM_HOST, "type": "A"},
+                             headers={"Accept": "application/dns-json"}, timeout=8)
+            ips += [a["data"] for a in r.json().get("Answer", []) if a.get("type") == 1]
+        except Exception:
+            pass
+    try:
+        ips += [ai[4][0] for ai in socket.getaddrinfo(TELEGRAM_HOST, 443, socket.AF_INET)]
+    except OSError:
+        pass
+    seen, ordered = set(), []
+    for ip in ips:
+        if ip not in seen:
+            seen.add(ip)
+            ordered.append(ip)
+    return ordered
+
+
+def _probe_ip(ip, timeout=5):
+    """TCP + TLS (SNI=домен) + запрос с фейковым токеном.
+    Живой = любой HTTP-ответ Bot API (401/404 на фейковый токен — норма),
+    мёртвый = таймаут или редирект (значит это не Bot API vhost)."""
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((ip, 443), timeout=timeout) as s:
+            with ctx.wrap_socket(s, server_hostname=TELEGRAM_HOST) as ts:
+                ts.sendall(f"GET /bot123:TEST/getMe HTTP/1.1\r\n"
+                           f"Host: {TELEGRAM_HOST}\r\nConnection: close\r\n\r\n".encode())
+                first_line = ts.recv(64).split(b"\r\n")[0]
+        parts = first_line.split(b" ")
+        # живой: HTTP-ответ не из 3xx (3xx = редирект на core.telegram.org, не Bot API)
+        return (first_line.startswith(b"HTTP/") and len(parts) > 1
+                and not parts[1].startswith(b"3"))
+    except (OSError, ssl.SSLError):
+        return False
+
+
+# Зондировать IP не чаще раза в PICK_COOLDOWN: попытки достучаться до
+# заблокированных адресов вызывают у фильтра провайдера временный сплошной
+# блок диапазонов телеграма — начинают дропаться даже живые IP (проверено).
+PICK_COOLDOWN = 300
+_LAST_PICK = [0.0]
+
+
+def pick_api_ip(force=False):
+    """Выбирает живой IP Bot API.
+    Зондирует ПОСЛЕДОВАТЕЛЬНО и останавливается на первом живом.
+    Порядок: прошлый рабочий, статический резервный список, свежие адреса
+    из DoH/системного DNS. Повторный зондаж — не чаще PICK_COOLDOWN.
+    """
+    now = monotonic()
+    if not force and now - _LAST_PICK[0] < PICK_COOLDOWN:
+        return _PIN["ip"]
+    _LAST_PICK[0] = now
+
+    tried = set()
+
+    def probe(ips):
+        for ip in ips:
+            if not ip or ip in tried:
+                continue
+            tried.add(ip)
+            # две попытки: одиночный SYN иногда дропается даже на живом IP,
+            # а ложный «мёртв» запускает зондаж заблокированных и штрафной блок
+            if _probe_ip(ip) or _probe_ip(ip):
+                return ip
+            logger.info(f"Bot API IP {ip} — недоступен")
+        return None
+
+    ip = probe([_PIN["ip"]] + FALLBACK_IPS) or probe(_fresh_ips())
+    if ip:
+        if _PIN["ip"] != ip:
+            logger.info(f"Bot API IP: {ip}")
+        _PIN["ip"] = ip
+        _session.close()  # следующий запрос пересоздаст пул под новый IP
+        return ip
+    logger.warning("Не найден живой IP Bot API")
+    return _PIN["ip"]
+
 
 # планировщик напоминаний, создается при старте в __main__
 scheduler = None
@@ -328,6 +427,7 @@ def main() -> None:
     Цикл long polling getUpdates
     """
     offset = None
+    fails = 0
     logger.info("Start polling")
     while True:
         params = {"timeout": 55, "allowed_updates": ["message", "callback_query"]}
@@ -335,9 +435,14 @@ def main() -> None:
             params["offset"] = offset
         try:
             updates = tg("getUpdates", req_timeout=70, **params)
+            fails = 0
         except Exception as err:
+            fails += 1
             logger.warning(f"getUpdates: {err}")
-            sleep(5)
+            if fails >= 3:
+                pick_api_ip()  # IP мог умереть; внутри кулдаун от частого зондажа
+            # экспоненциальная пауза: частые ретраи в блокировку только вредят
+            sleep(min(5 * fails, 60))
             continue
 
         for update in updates:
@@ -366,6 +471,7 @@ if __name__ == "__main__":
             scheduler.add_jobstore('sqlalchemy', url='sqlite:///jobs.sqlite')
             scheduler.start()
 
+            pick_api_ip()  # выбираем живой IP Bot API до старта поллинга
             main()
 
         except Exception as e:
