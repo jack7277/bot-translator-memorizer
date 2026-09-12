@@ -1,0 +1,47 @@
+# Нормализация: текстовые файлы в репозитории всегда хранятся с LF.
+# Правила живут здесь, а не в core.autocrlf каждой машины.
+* text=auto
+
+# Исходники — LF в репозитории, при checkout по platform-настройке git
+*.py text
+*.md text
+*.txt text
+*.cfg text
+*.ini text
+*.toml text
+requirements.txt text
+.gitignore text
+.gitattributes text
+
+# Windows-скрипты — всегда CRLF при checkout, независимо от core.autocrlf.
+# Парсер cmd.exe на LF-окончаниях ломается на goto/метках и многострочных блоках.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Linux/Docker — всегда LF при checkout.
+# CRLF в shebang даёт "bad interpreter: No such file or directory" в контейнере.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
+
+# Конфиги — LF (их читают и Linux-инструменты, и CI)
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Бинарные — не конвертировать и не пытаться диффить.
+# Сейчас такие файлы закрыты .gitignore (pronounce/, *.sqlite, *.zip);
+# правило сработает, если их когда-нибудь начнут коммитить.
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.sqlite binary
+*.db binary
+*.zip binary
+*.7z binary
